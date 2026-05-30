@@ -166,11 +166,46 @@ describeIf(!!API_KEY)("Jobo Enterprise Client – Integration Tests", () => {
       expect(job.listing_url).toBeTruthy();
       expect(job.apply_url).toBeTruthy();
       expect(job.source).toBeTruthy();
-      expect(job.source_id).toBeTruthy();
       expect(job.created_at).toBeTruthy();
       expect(job.updated_at).toBeTruthy();
-      expect(typeof job.is_remote).toBe("boolean");
       expect(Array.isArray(job.locations)).toBe(true);
+      expect(job.qualifications).toBeDefined();
+      expect(Array.isArray(job.responsibilities)).toBe(true);
+      expect(Array.isArray(job.benefits)).toBe(true);
+    });
+  });
+
+  // ── Companies ─────────────────────────────────────────────────────
+
+  describe("companies", () => {
+    it("fetches a company profile and its jobs", async () => {
+      const search = await client.search.search({ q: "engineer", pageSize: 1 });
+      if (search.jobs.length === 0) return; // no jobs to resolve a company id
+
+      const companyId = search.jobs[0].company.id;
+
+      const company = await client.companies.get(companyId);
+      expect(company.id).toBe(companyId);
+      expect(company.name).toBeTruthy();
+
+      const jobs = await client.companies.getJobs(companyId, { pageSize: 5 });
+      expect(jobs).toBeDefined();
+      expect(jobs.page).toBe(1);
+    });
+  });
+
+  // ── Search facets ─────────────────────────────────────────────────
+
+  describe("searchFacets", () => {
+    it("returns a facets map from advanced search", async () => {
+      const response = await client.search.searchAdvanced({
+        queries: ["engineer"],
+        includeFacets: ["work_model", "experience_level"],
+        pageSize: 5,
+      });
+
+      expect(response).toBeDefined();
+      expect(typeof response.facets).toBe("object");
     });
   });
 

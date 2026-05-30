@@ -13,7 +13,7 @@ export interface HttpOptions {
   _fetch: typeof globalThis.fetch;
 }
 
-const USER_AGENT = "jobo-node/2.0.0";
+const USER_AGENT = "jobo-node/3.0.0";
 
 export function toISOString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
@@ -106,6 +106,18 @@ export class HttpTransport {
     const url = new URL(path, this.baseUrl);
     const response = await this._fetch(url.toString(), {
       method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.timeout),
+    });
+    if (!response.ok) await handleError(response);
+    return response.json() as Promise<T>;
+  }
+
+  async put<T>(path: string, body: unknown): Promise<T> {
+    const url = new URL(path, this.baseUrl);
+    const response = await this._fetch(url.toString(), {
+      method: "PUT",
       headers: this.headers(),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.timeout),

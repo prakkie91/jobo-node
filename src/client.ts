@@ -1,6 +1,7 @@
 import { HttpTransport } from "./base";
 import { JobsFeedClient } from "./feed";
 import { JobsSearchClient } from "./search";
+import { CompaniesClient } from "./companies";
 import { LocationsClient } from "./locations";
 import { AutoApplyClient } from "./auto-apply";
 
@@ -24,6 +25,7 @@ export interface JoboClientOptions {
  * Access feature-specific sub-clients via properties:
  * - `client.feed` — Bulk job feed with cursor-based pagination
  * - `client.search` — Full-text job search with filters
+ * - `client.companies` — Enriched company profiles and per-company jobs
  * - `client.locations` — Geocoding and location resolution
  * - `client.autoApply` — Automated job application form filling
  *
@@ -36,6 +38,8 @@ export class JoboClient {
   readonly feed: JobsFeedClient;
   /** Full-text job search with filters and pagination. */
   readonly search: JobsSearchClient;
+  /** Enriched company profiles and per-company job listings. */
+  readonly companies: CompaniesClient;
   /** Geocoding and location resolution. */
   readonly locations: LocationsClient;
   /** Automated job application form filling. */
@@ -51,6 +55,7 @@ export class JoboClient {
 
     this.feed = new JobsFeedClient(this.http);
     this.search = new JobsSearchClient(this.http);
+    this.companies = new CompaniesClient(this.http);
     this.locations = new LocationsClient(this.http);
     this.autoApply = new AutoApplyClient(this.http);
   }

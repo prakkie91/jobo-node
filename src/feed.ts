@@ -10,7 +10,7 @@ import type {
 export interface GetJobsFeedOptions {
   locations?: LocationFilter[];
   sources?: string[];
-  isRemote?: boolean | null;
+  workModels?: string[];
   postedAfter?: Date | string | null;
   cursor?: string | null;
   batchSize?: number;
@@ -38,12 +38,12 @@ export class JobsFeedClient {
     const body: JobFeedRequest = stripUndefined({
       locations: options.locations,
       sources: options.sources,
-      is_remote: options.isRemote,
+      work_models: options.workModels,
       posted_after: options.postedAfter ? toISOString(options.postedAfter) : undefined,
       cursor: options.cursor,
       batch_size: options.batchSize ?? 1000,
     }) as JobFeedRequest;
-    return this.http.post<JobFeedResponse>("/api/feed/jobs", body);
+    return this.http.post<JobFeedResponse>("/api/jobs/feed", body);
   }
 
   /**
@@ -74,7 +74,7 @@ export class JobsFeedClient {
     if (options.cursor) {
       params.cursor = options.cursor;
     }
-    return this.http.get<ExpiredJobIdsResponse>("/api/feed/jobs/expired", params);
+    return this.http.get<ExpiredJobIdsResponse>("/api/jobs/expired", params);
   }
 
   /**
