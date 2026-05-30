@@ -46,11 +46,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Prakkie91/jobo-node.git"
+    "url": "https://github.com/prakkie91/jobo-node.git"
   },
   "homepage": "https://jobo.world/enterprise/",
   "bugs": {
-    "url": "https://github.com/Prakkie91/jobo-node/issues"
+    "url": "https://github.com/prakkie91/jobo-node/issues"
   },
   "engines": {
     "node": ">=18.0.0"
