@@ -110,17 +110,25 @@ Full-text search with filters and page-based pagination.
 ### Simple search
 
 ```typescript
+import { WorkModel } from "jobo-enterprise";
+
 const results = await client.search.search({
   q: "data scientist",
   location: "New York",
   sources: "greenhouse,lever",
-  workModel: "remote",
+  workModel: WorkModel.Remote, // or just "remote"
   minSalaryUsd: 120000,
   pageSize: 50,
 });
 
 console.log(`Found ${results.total} jobs across ${results.total_pages} pages`);
 ```
+
+> **Closed value sets.** Parameters with a fixed set of accepted values ship as
+> const objects for autocomplete — `WorkModel`, `EmploymentType`,
+> `ExperienceLevel`, `CompensationPeriod`, and `SkillType`. Each is also a
+> string-literal union type of the same name, and the options accept any raw
+> string, so passing the literal (e.g. `"remote"`) is always valid too.
 
 ### Advanced search (typed filters & facets)
 

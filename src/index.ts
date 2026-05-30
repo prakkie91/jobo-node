@@ -13,6 +13,18 @@ export type { GetJobsFeedOptions, GetExpiredJobIdsOptions } from "./feed";
 export type { SearchJobsOptions, SearchJobsAdvancedOptions } from "./search";
 export type { GetCompanyJobsOptions } from "./companies";
 
+// Enums (closed value sets). Each name is exported as both a runtime const
+// object (e.g. `WorkModel.Remote`) and a string-literal union type of the same
+// name, so it can be used in either position.
+export {
+  WorkModel,
+  EmploymentType,
+  ExperienceLevel,
+  CompensationPeriod,
+  SkillType,
+} from "./enums";
+export type { OrString } from "./enums";
+
 // Models
 export type {
   // Jobs

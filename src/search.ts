@@ -1,5 +1,11 @@
 import { HttpTransport, toISOString, stripUndefined } from "./base";
 import type {
+  EmploymentType,
+  ExperienceLevel,
+  OrString,
+  WorkModel,
+} from "./enums";
+import type {
   InclusionExclusionFilter,
   Job,
   JobSearchBodyRequest,
@@ -11,9 +17,9 @@ export interface SearchJobsOptions {
   q?: string;
   location?: string;
   sources?: string;
-  workModel?: string;
-  employmentType?: string;
-  experienceLevel?: string;
+  workModel?: OrString<WorkModel>;
+  employmentType?: OrString<EmploymentType>;
+  experienceLevel?: OrString<ExperienceLevel>;
   postedAfter?: Date | string;
   minSalaryUsd?: number;
   maxSalaryUsd?: number;
@@ -32,9 +38,9 @@ export interface SearchJobsAdvancedOptions {
   skills?: InclusionExclusionFilter;
   companies?: InclusionExclusionFilter;
   industries?: InclusionExclusionFilter;
-  workModels?: string[];
-  employmentTypes?: string[];
-  experienceLevels?: string[];
+  workModels?: Array<OrString<WorkModel>>;
+  employmentTypes?: Array<OrString<EmploymentType>>;
+  experienceLevels?: Array<OrString<ExperienceLevel>>;
   salaryUsd?: RangeFilter;
   postedAfter?: Date | string | null;
   includeFacets?: string[];

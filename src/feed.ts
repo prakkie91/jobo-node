@@ -1,4 +1,5 @@
 import { HttpTransport, toISOString, stripUndefined } from "./base";
+import type { OrString, WorkModel } from "./enums";
 import type {
   Job,
   JobFeedRequest,
@@ -10,7 +11,7 @@ import type {
 export interface GetJobsFeedOptions {
   locations?: LocationFilter[];
   sources?: string[];
-  workModels?: string[];
+  workModels?: Array<OrString<WorkModel>>;
   postedAfter?: Date | string | null;
   cursor?: string | null;
   batchSize?: number;
