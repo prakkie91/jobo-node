@@ -61,7 +61,13 @@ describeIf(!!API_KEY)("Jobo Enterprise Client – Integration Tests", () => {
 
       expect(second).toBeDefined();
       expect(second.jobs.length).toBeGreaterThan(0);
-      expect(second.jobs[0].id).not.toBe(first.jobs[0].id);
+      // The feed mutates live (jobs get re-scraped and bubble back toward the
+      // top), so a single job can legitimately re-surface across a page
+      // boundary. Assert the page advanced — at least one job on page 2 was not
+      // on page 1 — rather than comparing the first element, which flakes on a
+      // moving dataset.
+      const firstIds = new Set(first.jobs.map((j) => j.id));
+      expect(second.jobs.some((j) => !firstIds.has(j.id))).toBe(true);
     });
   });
 
