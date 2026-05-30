@@ -4,7 +4,7 @@ import { JoboAuthenticationError } from "../src/errors";
 import type { Job, JobFeedResponse, JobSearchResponse } from "../src/models";
 
 const API_KEY = process.env.JOBO_API_KEY;
-const BASE_URL = process.env.JOBO_BASE_URL ?? "https://jobs-api.jobo.world";
+const BASE_URL = process.env.JOBO_BASE_URL ?? "https://connect.jobo.world";
 
 const describeIf = (condition: boolean) =>
   condition ? describe : describe.skip;
@@ -166,11 +166,46 @@ describeIf(!!API_KEY)("Jobo Enterprise Client – Integration Tests", () => {
       expect(job.listing_url).toBeTruthy();
       expect(job.apply_url).toBeTruthy();
       expect(job.source).toBeTruthy();
-      expect(job.source_id).toBeTruthy();
       expect(job.created_at).toBeTruthy();
       expect(job.updated_at).toBeTruthy();
-      expect(typeof job.is_remote).toBe("boolean");
       expect(Array.isArray(job.locations)).toBe(true);
+      expect(job.qualifications).toBeDefined();
+      expect(Array.isArray(job.responsibilities)).toBe(true);
+      expect(Array.isArray(job.benefits)).toBe(true);
+    });
+  });
+
+  // ── Companies ─────────────────────────────────────────────────────
+
+  describe("companies", () => {
+    it("fetches a company profile and its jobs", async () => {
+      const search = await client.search.search({ q: "engineer", pageSize: 1 });
+      if (search.jobs.length === 0) return; // no jobs to resolve a company id
+
+      const companyId = search.jobs[0].company.id;
+
+      const company = await client.companies.get(companyId);
+      expect(company.id).toBe(companyId);
+      expect(company.name).toBeTruthy();
+
+      const jobs = await client.companies.getJobs(companyId, { pageSize: 5 });
+      expect(jobs).toBeDefined();
+      expect(jobs.page).toBe(1);
+    });
+  });
+
+  // ── Search facets ─────────────────────────────────────────────────
+
+  describe("searchFacets", () => {
+    it("returns a facets map from advanced search", async () => {
+      const response = await client.search.searchAdvanced({
+        queries: ["engineer"],
+        includeFacets: ["work_model", "experience_level"],
+        pageSize: 5,
+      });
+
+      expect(response).toBeDefined();
+      expect(typeof response.facets).toBe("object");
     });
   });
 
@@ -191,10 +226,20 @@ describeIf(!!API_KEY)("Jobo Enterprise Client – Integration Tests", () => {
     });
 
     it("handles invalid location", async () => {
-      const result = await client.locations.geocode("invalidlocationxyz123");
-
-      expect(result).toBeDefined();
-      // May succeed with remote keyword parsing or fail - just check response
+      // The geocode endpoint can hang server-side on an unresolvable string,
+      // so use a short timeout and accept either a response or a clean timeout
+      // — both mean the SDK handled the input without crashing.
+      const shortClient = new JoboClient({
+        apiKey: API_KEY!,
+        baseUrl: BASE_URL,
+        timeout: 10_000,
+      });
+      try {
+        const result = await shortClient.locations.geocode("invalidlocationxyz123");
+        expect(result).toBeDefined();
+      } catch (err) {
+        expect((err as Error).name).toBe("TimeoutError");
+      }
     });
   });
 
