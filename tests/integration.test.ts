@@ -4,7 +4,7 @@ import { JoboAuthenticationError } from "../src/errors";
 import type { Job, JobFeedResponse, JobSearchResponse } from "../src/models";
 
 const API_KEY = process.env.JOBO_API_KEY;
-const BASE_URL = process.env.JOBO_BASE_URL ?? "https://jobs-api.jobo.world";
+const BASE_URL = process.env.JOBO_BASE_URL ?? "https://connect.jobo.world";
 
 const describeIf = (condition: boolean) =>
   condition ? describe : describe.skip;

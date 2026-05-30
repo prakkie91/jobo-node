@@ -281,7 +281,7 @@ try {
 | Option    | Default                       | Description                  |
 | --------- | ----------------------------- | ---------------------------- |
 | `apiKey`  | _required_                    | Your API key                 |
-| `baseUrl` | `https://jobs-api.jobo.world` | API base URL                 |
+| `baseUrl` | `https://connect.jobo.world` | API base URL                 |
 | `timeout` | `30000`                       | Request timeout (ms)         |
 | `fetch`   | `globalThis.fetch`            | Custom fetch implementation  |
 

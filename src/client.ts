@@ -5,13 +5,13 @@ import { CompaniesClient } from "./companies";
 import { LocationsClient } from "./locations";
 import { AutoApplyClient } from "./auto-apply";
 
-const DEFAULT_BASE_URL = "https://jobs-api.jobo.world";
+const DEFAULT_BASE_URL = "https://connect.jobo.world";
 const DEFAULT_TIMEOUT = 30_000;
 
 export interface JoboClientOptions {
   /** Your Jobo Enterprise API key. */
   apiKey: string;
-  /** API base URL. Defaults to `https://jobs-api.jobo.world`. */
+  /** API base URL. Defaults to `https://connect.jobo.world`. */
   baseUrl?: string;
   /** Request timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
