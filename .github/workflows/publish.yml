@@ -1,45 +1,61 @@
-name: Publish to npm
+name: Release
 
+# Merging a version bump is the release. Every push to main reads the version
+# out of package.json and compares it with npm: unchanged means there is
+# nothing to do, new means test, publish, and tag. No tag to cut by hand, and
+# the manifest stays the single source of truth for the version.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Package version override (leave empty to use package.json version)"
-        required: false
-        type: string
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.published.outputs.publish }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - name: Read version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not read version from package.json"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Install dependencies
-        run: npm install
+      - name: Is it already on npm?
+        id: published
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # `npm view` exits non-zero when the exact version does not exist.
+          if npm view "jobo-enterprise@$VERSION" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$VERSION is already on npm — nothing to release."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$VERSION is not on npm — releasing."
+          fi
 
-      - name: Build
-        run: npm run build
+  test:
+    needs: check
+    if: needs.check.outputs.publish == 'true'
+    # Reuses the Tests workflow rather than restating it, so there is one
+    # definition of what "the tests pass" means.
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
 
-      - name: Run integration tests
-        run: npm test
-        env:
-          JOBO_API_KEY: ${{ secrets.JOBO_API_KEY }}
-
-  build-and-publish:
-    needs: test
+  publish:
+    needs: [check, test]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
-
+      contents: write # create the release tag
+      id-token: write # npm provenance
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,16 +72,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Set version (if override or release tag)
-        run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            npm version "${{ github.event.inputs.version }}" --no-git-tag-version --allow-same-version
-          elif [ "${{ github.event_name }}" = "release" ]; then
-            TAG="${{ github.event.release.tag_name }}"
-            npm version "${TAG#v}" --no-git-tag-version --allow-same-version
-          fi
-
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Only after the registry has it, so a failed publish leaves no tag behind.
+      - name: Tag the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ needs.check.outputs.version }}" \
+            --title "v${{ needs.check.outputs.version }}" \
+            --generate-notes

@@ -3,10 +3,15 @@ import { JobsFeedClient } from "./feed";
 import { JobsSearchClient } from "./search";
 import { CompaniesClient } from "./companies";
 import { LocationsClient } from "./locations";
-import { AutoApplyClient } from "./auto-apply";
 
 const DEFAULT_BASE_URL = "https://connect.jobo.world";
 const DEFAULT_TIMEOUT = 30_000;
+
+/**
+ * The feed endpoints stream up to 1,000 full job records per call. The API docs
+ * ask for a response timeout of at least 120 seconds on those routes.
+ */
+const DEFAULT_FEED_TIMEOUT = 120_000;
 
 export interface JoboClientOptions {
   /** Your Jobo Enterprise API key. */
@@ -15,6 +20,11 @@ export interface JoboClientOptions {
   baseUrl?: string;
   /** Request timeout in milliseconds. Defaults to 30000. */
   timeout?: number;
+  /**
+   * Response timeout in milliseconds for the two feed endpoints, which stream
+   * up to 1,000 full job records per call. Defaults to 120000.
+   */
+  feedTimeout?: number;
   /** Custom fetch implementation (e.g. for testing). */
   fetch?: typeof globalThis.fetch;
 }
@@ -27,7 +37,6 @@ export interface JoboClientOptions {
  * - `client.search` — Full-text job search with filters
  * - `client.companies` — Enriched company profiles and per-company jobs
  * - `client.locations` — Geocoding and location resolution
- * - `client.autoApply` — Automated job application form filling
  *
  * Uses the built-in `fetch` API (Node 18+, Bun, Deno, browsers).
  */
@@ -42,13 +51,12 @@ export class JoboClient {
   readonly companies: CompaniesClient;
   /** Geocoding and location resolution. */
   readonly locations: LocationsClient;
-  /** Automated job application form filling. */
-  readonly autoApply: AutoApplyClient;
 
   constructor(options: JoboClientOptions) {
     this.http = new HttpTransport({
       baseUrl: (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
       timeout: options.timeout ?? DEFAULT_TIMEOUT,
+      feedTimeout: options.feedTimeout ?? DEFAULT_FEED_TIMEOUT,
       apiKey: options.apiKey,
       _fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
     });
@@ -57,6 +65,5 @@ export class JoboClient {
     this.search = new JobsSearchClient(this.http);
     this.companies = new CompaniesClient(this.http);
     this.locations = new LocationsClient(this.http);
-    this.autoApply = new AutoApplyClient(this.http);
   }
 }

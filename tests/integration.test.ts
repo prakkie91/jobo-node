@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { JoboClient } from "../src/client";
-import { JoboAuthenticationError } from "../src/errors";
+import {
+  JoboAuthenticationError,
+  JoboNotFoundError,
+  JoboPermissionError,
+} from "../src/errors";
+import { EmploymentType, ExperienceLevel } from "../src/enums";
 import type { Job, JobFeedResponse, JobSearchResponse } from "../src/models";
 
 const API_KEY = process.env.JOBO_API_KEY;
@@ -249,24 +254,116 @@ describeIf(!!API_KEY)("Jobo Enterprise Client – Integration Tests", () => {
     });
   });
 
-  // ── AutoApply (disabled – not yet implemented) ────────────────────
+  // ── Job by id ─────────────────────────────────────────────────────
 
-  describe.skip("AutoApply", () => {
-    it("startSession returns session", async () => {
-      const response = await client.autoApply.startSession(
-        "https://invalid-url-that-does-not-exist.com/jobs/123"
-      );
+  describe("getJob", () => {
+    it("re-fetches a job returned by search", async () => {
+      const search = await client.search.search({ q: "engineer", pageSize: 1 });
+      if (search.jobs.length === 0) return; // no jobs to resolve an id
 
-      expect(response).toBeDefined();
-      expect(response.session_id).toBeTruthy();
+      const expected = search.jobs[0];
+      const job = await client.search.getJob(expected.id);
+
+      expect(job.id).toBe(expected.id);
+      expect(job.title).toBe(expected.title);
     });
 
-    it("endSession returns false for invalid session", async () => {
-      const result = await client.autoApply.endSession(
-        "00000000-0000-0000-0000-000000000000"
-      );
+    it("throws JoboNotFoundError for an unknown id", async () => {
+      await expect(
+        client.search.getJob("00000000-0000-0000-0000-000000000000")
+      ).rejects.toThrow(JoboNotFoundError);
+    });
+  });
 
-      expect(result).toBe(false);
+  // ── Managed feed ──────────────────────────────────────────────────
+
+  describe("getManagedJobs", () => {
+    it("returns a batch, or rejects a key with no customer account", async () => {
+      // Managed Job Scraping is per-account. A customer key with no managed
+      // sources returns an empty batch; a sandbox or marketplace key has no
+      // customer account at all and is rejected outright.
+      try {
+        const response = await client.feed.getManagedJobs({ batchSize: 5 });
+        expect(response.jobs).toBeDefined();
+        expect(response.jobs.length).toBeLessThanOrEqual(5);
+      } catch (err) {
+        expect(err).toBeInstanceOf(JoboPermissionError);
+      }
+    });
+  });
+
+  // ── Canonical filter values ───────────────────────────────────────
+
+  describe("filter values", () => {
+    it("carries the canonical employment_type wire value", async () => {
+      // The documented canonical spelling is hyphenated. (The index also
+      // happens to match the pre-4.0.0 underscored spelling, so this was a
+      // correctness fix rather than a broken filter.)
+      expect(EmploymentType.FullTime).toBe("full-time");
+      expect(EmploymentType.PartTime).toBe("part-time");
+
+      const response = await client.search.search({
+        employmentType: EmploymentType.FullTime,
+        pageSize: 1,
+      });
+      expect(response.total).toBeGreaterThan(0);
+    });
+
+    it("exposes freelance as an employment type", async () => {
+      // Absent from the enum before 4.0.0 — callers had to pass the literal.
+      expect(EmploymentType.Freelance).toBe("freelance");
+
+      const response = await client.search.search({
+        employmentType: EmploymentType.Freelance,
+        pageSize: 1,
+      });
+      expect(response.total).toBeGreaterThan(0);
+    });
+
+    it("exposes intern as an experience level", async () => {
+      // Absent from the enum before 4.0.0.
+      expect(ExperienceLevel.Intern).toBe("intern");
+
+      const response = await client.search.search({
+        experienceLevel: ExperienceLevel.Intern,
+        pageSize: 1,
+      });
+      expect(response.total).toBeGreaterThan(0);
+    });
+  });
+
+  // ── Field selection and incremental sync ──────────────────────────
+
+  describe("field selection", () => {
+    it("accepts includeFields", async () => {
+      // Core fields are always returned whatever includeFields asks for. We do
+      // not assert that the heavy fields are dropped: the API currently returns
+      // them for an empty value, so that behaviour is not the client's to pin.
+      const response = await client.search.search({
+        q: "engineer",
+        includeFields: "summary",
+        pageSize: 1,
+      });
+      expect(response.jobs.length).toBeGreaterThan(0);
+      expect(response.jobs[0].title).toBeTruthy();
+    });
+
+    it("accepts updatedAfter and stableScan on the feed", async () => {
+      const response = await client.feed.getJobs({
+        updatedAfter: new Date(Date.now() - 6 * 60 * 60 * 1000),
+        stableScan: true,
+        batchSize: 5,
+      });
+
+      expect(response.jobs).toBeDefined();
+      expect(response.jobs.length).toBeLessThanOrEqual(5);
+    });
+
+    it("treats expiredSince as optional", async () => {
+      const response = await client.feed.getExpiredJobIds({ batchSize: 5 });
+
+      expect(response).toBeDefined();
+      expect(response.job_ids).toBeDefined();
     });
   });
 });

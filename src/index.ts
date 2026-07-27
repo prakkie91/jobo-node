@@ -6,10 +6,13 @@ export { JobsFeedClient } from "./feed";
 export { JobsSearchClient } from "./search";
 export { CompaniesClient } from "./companies";
 export { LocationsClient } from "./locations";
-export { AutoApplyClient } from "./auto-apply";
 
 // Sub-client option types
-export type { GetJobsFeedOptions, GetExpiredJobIdsOptions } from "./feed";
+export type {
+  GetJobsFeedOptions,
+  GetManagedJobsFeedOptions,
+  GetExpiredJobIdsOptions,
+} from "./feed";
 export type { SearchJobsOptions, SearchJobsAdvancedOptions } from "./search";
 export type { GetCompanyJobsOptions } from "./companies";
 
@@ -38,6 +41,7 @@ export type {
   // Feed
   LocationFilter,
   JobFeedRequest,
+  ManagedJobFeedRequest,
   JobFeedResponse,
   ExpiredJobIdsResponse,
   // Search
@@ -65,26 +69,17 @@ export type {
   CompanyFeaturedList,
   CompanyKeyEvent,
   CompanyEventAppearance,
-  // AutoApply
-  AutoApplySessionResponse,
-  FieldAnswer,
-  FieldOption,
-  FormFieldInfo,
-  ValidationError,
-  StartAutoApplySessionRequest,
-  SetAutoApplyAnswersRequest,
-  RunAutoApplyRequest,
-  RunAutoApplyResponse,
-  AutoApplyStepLog,
-  AutoApplyProfileRequest,
-  AutoApplyProfileResponse,
 } from "./models";
 
 // Errors
 export {
   JoboError,
   JoboAuthenticationError,
+  JoboPermissionError,
+  JoboNotFoundError,
   JoboRateLimitError,
   JoboValidationError,
+  JoboCursorRestartRequiredError,
   JoboServerError,
 } from "./errors";
+export type { JoboErrorOptions } from "./errors";

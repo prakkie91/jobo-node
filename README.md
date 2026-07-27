@@ -2,7 +2,7 @@
 
 # Jobo Enterprise — Node.js / TypeScript Client
 
-**Access millions of job listings, geocode locations, and automate job applications — all from a single API.**
+**Access millions of job listings, enriched company profiles, and geocoding — all from a single API.**
 
 [![npm](https://img.shields.io/npm/v/jobo-enterprise)](https://www.npmjs.com/package/jobo-enterprise)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4+-blue)](https://www.typescriptlang.org/)
@@ -14,11 +14,10 @@
 
 | Sub-client          | Property            | Description                                              |
 | ------------------- | ------------------- | -------------------------------------------------------- |
-| **Jobs Feed**       | `client.feed`       | Bulk job feed with cursor-based pagination (45+ ATS)     |
-| **Jobs Search**     | `client.search`     | Full-text search with location, work-model, and source filters |
+| **Jobs Feed**       | `client.feed`       | Bulk and managed job feeds with cursor-based pagination (106 ATS) |
+| **Jobs Search**     | `client.search`     | Full-text search, filters, facets, and single-job lookup |
 | **Companies**       | `client.companies`  | Enriched company profiles and per-company job listings   |
 | **Locations**       | `client.locations`  | Geocode location strings into structured coordinates     |
-| **Auto Apply**      | `client.autoApply`  | Automate job applications with form field discovery      |
 
 > **Get your API key** → [enterprise.jobo.world/api-keys](https://enterprise.jobo.world/api-keys)
 
@@ -91,12 +90,37 @@ for await (const job of client.feed.iterJobs({
 }
 ```
 
-### Expired job IDs
+### Incremental sync
+
+After the initial backfill, pass `updatedAfter` to pick up only what changed.
+Scans page by immutable creation time by default (`stableScan`), so records
+cannot shift across page boundaries while you are reading.
 
 ```typescript
-const expiredSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
+const since = new Date(Date.now() - 60 * 60 * 1000);
 
-for await (const jobId of client.feed.iterExpiredJobIds({ expiredSince })) {
+for await (const job of client.feed.iterJobs({ updatedAfter: since, batchSize: 1000 })) {
+  await upsert(job);
+}
+```
+
+### Managed feed
+
+Jobs from the companies you configured through **Managed Job Scraping** in the
+Jobo portal. Same batch and cursor semantics, minus the `locations` filter.
+
+```typescript
+for await (const job of client.feed.iterManagedJobs({ batchSize: 1000 })) {
+  await saveToDatabase(job);
+}
+```
+
+### Expired job IDs
+
+`expiredSince` is optional and defaults to 24 hours ago. Maximum lookback is 7 days.
+
+```typescript
+for await (const jobId of client.feed.iterExpiredJobIds()) {
   await markAsExpired(jobId);
 }
 ```
@@ -128,7 +152,31 @@ console.log(`Found ${results.total} jobs across ${results.total_pages} pages`);
 > const objects for autocomplete — `WorkModel`, `EmploymentType`,
 > `ExperienceLevel`, `CompensationPeriod`, and `SkillType`. Each is also a
 > string-literal union type of the same name, and the options accept any raw
-> string, so passing the literal (e.g. `"remote"`) is always valid too.
+> string, so passing the literal (e.g. `"remote"`) is always valid too. Values
+> are lowercase and hyphenated (`"full-time"`, `"per-diem"`); the API matches
+> them exactly, so a misspelt value simply matches nothing.
+
+### Fetch one job
+
+```typescript
+const job = await client.search.getJob("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+```
+
+Unmetered — this endpoint deducts no credits, which makes it a cheap way to wire
+up an integration.
+
+### Trim the payload
+
+Omit `includeFields` for the whole job, pass a subset to keep only those heavy
+fields, or pass an empty value for core fields only.
+
+```typescript
+const results = await client.search.search({
+  q: "data scientist",
+  includeFields: "summary",
+  pageSize: 50,
+});
+```
 
 ### Advanced search (typed filters & facets)
 
@@ -192,61 +240,28 @@ for (const location of result.locations) {
 
 ---
 
-## Auto Apply — `client.autoApply`
+## Auto Apply
 
-Automate job applications with form field discovery and filling.
-
-```typescript
-import type { FieldAnswer } from "jobo-enterprise";
-
-// Start a session
-const session = await client.autoApply.startSession(job.apply_url);
-
-console.log(`Provider: ${session.provider_display_name}`);
-console.log(`Fields: ${session.fields.length}`);
-
-// Fill in fields — `type` mirrors the FormFieldInfo.type of each field
-const answers: FieldAnswer[] = [
-  { field_id: "first_name", type: "text", value: "John" },
-  { field_id: "last_name", type: "text", value: "Doe" },
-  { field_id: "email", type: "text", value: "john@example.com" },
-];
-
-const result = await client.autoApply.setAnswers(session.session_id, answers);
-
-if (result.is_terminal) {
-  console.log("Application submitted!");
-}
-
-// Clean up
-await client.autoApply.endSession(session.session_id);
-```
-
-### Profiles & one-shot run
-
-```typescript
-const profile = await client.autoApply.createProfile({
-  name: "Default",
-  first_name: "John",
-  last_name: "Doe",
-  email: "john@example.com",
-  phone: "+1-555-0100",
-});
-
-// Run the full flow end-to-end against the stored profile
-const run = await client.autoApply.run(profile.id, job.apply_url);
-console.log(run.status, run.steps_completed, run.fields_filled);
-```
+Not covered by this client. The Auto Apply contract is profileless and
+callback-driven, and application creation is not yet open to traffic. Call it
+over plain HTTPS — see the
+[Auto Apply reference](https://jobo.world/docs/api-reference/auto-apply/auto-apply).
 
 ---
 
 ## Error Handling
 
+`429` and `503` are retried for you with bounded backoff, honouring
+`Retry-After`. Everything else throws immediately, as a subclass of `JoboError`:
+
 ```typescript
 import {
   JoboAuthenticationError,
+  JoboPermissionError,
+  JoboNotFoundError,
   JoboRateLimitError,
   JoboValidationError,
+  JoboCursorRestartRequiredError,
   JoboServerError,
   JoboError,
 } from "jobo-enterprise";
@@ -256,17 +271,26 @@ try {
 } catch (error) {
   if (error instanceof JoboAuthenticationError) {
     console.error("Invalid API key");
+  } else if (error instanceof JoboPermissionError) {
+    console.error("Key is not entitled to this resource");
+  } else if (error instanceof JoboNotFoundError) {
+    console.error("No such job or company");
   } else if (error instanceof JoboRateLimitError) {
     console.error(`Rate limited. Retry after ${error.retryAfter}s`);
   } else if (error instanceof JoboValidationError) {
-    console.error(`Bad request: ${error.detail}`);
+    console.error(`Bad request: ${error.detail} (${error.code})`);
+  } else if (error instanceof JoboCursorRestartRequiredError) {
+    console.error("Feed cursor is spent — discard it and start a new scan");
   } else if (error instanceof JoboServerError) {
     console.error("Server error — try again later");
   }
 }
 ```
 
-## Supported ATS Sources (45+)
+Every error carries the API's machine-readable problem `code` when one is
+supplied, alongside `statusCode`, `detail`, and the raw `responseBody`.
+
+## Supported ATS Sources (106)
 
 | Category           | Sources                                                                                                                                       |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -276,14 +300,19 @@ try {
 | **SMB & Niche**    | `gohire`, `recooty`, `applicantpro`, `hiringthing`, `careerplug`, `hirehive`, `kula`, `careerpuck`, `talnet`, `jobscore`                      |
 | **Specialized**    | `freshteam`, `isolved`, `joincom`, `eightfold`, `phenompeople`                                                                                |
 
+The full catalogue of 106 providers is listed in the
+[API documentation](https://jobo.world/docs/sources). Treat it as an open set —
+new `provider_id` values appear as platforms are added.
+
 ## Configuration
 
-| Option    | Default                       | Description                  |
-| --------- | ----------------------------- | ---------------------------- |
-| `apiKey`  | _required_                    | Your API key                 |
-| `baseUrl` | `https://connect.jobo.world` | API base URL                 |
-| `timeout` | `30000`                       | Request timeout (ms)         |
-| `fetch`   | `globalThis.fetch`            | Custom fetch implementation  |
+| Option        | Default                      | Description                             |
+| ------------- | ---------------------------- | --------------------------------------- |
+| `apiKey`      | _required_                   | Your API key                            |
+| `baseUrl`     | `https://connect.jobo.world` | API base URL                            |
+| `timeout`     | `30000`                      | Request timeout (ms)                    |
+| `feedTimeout` | `120000`                     | Response timeout for the feed routes (ms) |
+| `fetch`       | `globalThis.fetch`           | Custom fetch implementation             |
 
 ## Requirements
 
@@ -292,11 +321,11 @@ try {
 
 ## Use Cases
 
-- **Build a job board** — Search and display jobs from 45+ ATS platforms
+- **Build a job board** — Search and display jobs from 106 ATS platforms
 - **Job aggregator** — Bulk-sync millions of listings with the feed endpoint
 - **ATS data pipeline** — Pull jobs from Greenhouse, Lever, Workday, etc. into your data warehouse
 - **Recruitment tools** — Power candidate-facing job search experiences
-- **Auto-apply automation** — Automate job applications at scale
+- **Company intelligence** — Enrich listings with funding, headcount, and tech-stack data
 - **Location intelligence** — Geocode and normalize job locations
 
 ## Links
