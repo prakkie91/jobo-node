@@ -5,7 +5,11 @@
  * autocompleted access like `WorkModel.Remote`) and as a string-literal union
  * type of the same name. The option types accept `<Enum> | (string & {})`, so
  * the literal values autocomplete while any raw string remains valid — these
- * are plain snake_case wire strings, so nothing is transformed.
+ * are the canonical wire strings, so nothing is transformed.
+ *
+ * Filter values are lowercase and hyphenated (`"full-time"`, not
+ * `"full_time"`); the API matches them exactly and an unrecognised value simply
+ * matches nothing.
  *
  * @example
  * import { WorkModel, ExperienceLevel } from "jobo-enterprise";
@@ -25,16 +29,18 @@ export type WorkModel = (typeof WorkModel)[keyof typeof WorkModel];
 
 /** Nature of the engagement (`employment_type`). */
 export const EmploymentType = {
-  FullTime: "full_time",
-  PartTime: "part_time",
+  FullTime: "full-time",
+  PartTime: "part-time",
   Contract: "contract",
   Internship: "internship",
+  Freelance: "freelance",
   Temporary: "temporary",
 } as const;
 export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
 
 /** Seniority of the role (`experience_level`). */
 export const ExperienceLevel = {
+  Intern: "intern",
   Entry: "entry",
   Mid: "mid",
   Senior: "senior",
@@ -45,11 +51,12 @@ export type ExperienceLevel = (typeof ExperienceLevel)[keyof typeof ExperienceLe
 
 /** Period a compensation range refers to (`compensation.period`). */
 export const CompensationPeriod = {
-  Hour: "hour",
-  Day: "day",
-  Week: "week",
-  Month: "month",
-  Year: "year",
+  Hourly: "hourly",
+  Daily: "daily",
+  Weekly: "weekly",
+  Monthly: "monthly",
+  Yearly: "yearly",
+  PerDiem: "per-diem",
 } as const;
 export type CompensationPeriod = (typeof CompensationPeriod)[keyof typeof CompensationPeriod];
 

@@ -90,21 +90,47 @@ export interface LocationFilter {
   city?: string;
 }
 
-/** Request body for the jobs feed endpoint (POST /api/jobs/feed). */
+/**
+ * Request body for the jobs feed endpoint (POST /api/jobs/feed).
+ *
+ * The cursor preserves the filters and batch size from the first request, so a
+ * continuation carries the cursor alone; start a new scan to change them.
+ */
 export interface JobFeedRequest {
   locations?: LocationFilter[];
   sources?: string[];
   work_models?: string[];
+  employment_types?: string[];
+  experience_levels?: string[];
   posted_after?: string | null;
+  updated_after?: string | null;
+  stable_scan?: boolean;
   cursor?: string | null;
   batch_size?: number;
 }
 
-/** Response from the jobs feed endpoint. */
+/**
+ * Request body for the managed jobs feed (POST /api/jobs/feed/managed).
+ *
+ * Same shape as {@link JobFeedRequest} minus the `locations` filter, which the
+ * managed endpoint does not support.
+ */
+export interface ManagedJobFeedRequest {
+  sources?: string[];
+  work_models?: string[];
+  posted_after?: string | null;
+  updated_after?: string | null;
+  cursor?: string | null;
+  batch_size?: number;
+}
+
+/** Response from the jobs feed endpoints. */
 export interface JobFeedResponse {
   jobs: Job[];
   next_cursor?: string | null;
   has_more: boolean;
+  /** Estimated size of the scan. Returned on the first page only. */
+  estimated_total?: number | null;
 }
 
 /** Response from the expired job IDs endpoint. */
@@ -131,6 +157,7 @@ export interface RangeFilter {
 /** Request body for the advanced search endpoint (POST /api/jobs/search). */
 export interface JobSearchBodyRequest {
   queries?: string[];
+  search_description?: boolean;
   locations?: string[];
   sources?: string[];
   skills?: InclusionExclusionFilter;
@@ -141,9 +168,14 @@ export interface JobSearchBodyRequest {
   experience_levels?: string[];
   salary_usd?: RangeFilter;
   posted_after?: string | null;
+  posted_before?: string | null;
+  discovered_after?: string | null;
+  discovered_before?: string | null;
   page?: number;
   page_size?: number;
   include_facets?: string[];
+  /** Heavy fields to keep. Omit for the whole job; `[]` for core fields only. */
+  include_fields?: string[];
 }
 
 /** An aggregated facet count. */
@@ -373,161 +405,4 @@ export interface Company {
   investor_types: string[];
 
   page_rank?: number | null;
-}
-
-// ── AutoApply models ─────────────────────────────────────────────────
-
-/** A single option in a select, radio group, or checkbox group. */
-export interface FieldOption {
-  value: string;
-  text: string;
-}
-
-/** Information about a form field discovered on an application page. */
-export interface FormFieldInfo {
-  field_id: string;
-  /** snake_case FieldType, e.g. "text", "text_area", "select". */
-  type: string;
-  label: string;
-  is_required: boolean;
-  options: FieldOption[];
-  handler_type?: string | null;
-}
-
-/** An answer to set on a specific form field. */
-export interface FieldAnswer {
-  field_id: string;
-  /** snake_case FieldType matching the FormFieldInfo. */
-  type: string;
-  value?: string;
-  typeahead_selection?: string | null;
-  clear_first?: boolean;
-  handler_type?: string | null;
-}
-
-/** A validation error displayed on the application form. */
-export interface ValidationError {
-  field_id?: string | null;
-  message: string;
-}
-
-/** Request to start an auto-apply session. */
-export interface StartAutoApplySessionRequest {
-  apply_url: string;
-}
-
-/** Request to set answers for an auto-apply session. */
-export interface SetAutoApplyAnswersRequest {
-  session_id: string;
-  answers: FieldAnswer[];
-}
-
-/** Response from an auto-apply session operation. */
-export interface AutoApplySessionResponse {
-  session_id: string;
-  provider_id: string;
-  provider_display_name: string;
-  success: boolean;
-  /** snake_case ApplyFlowStatus, e.g. "form_ready", "submitted". */
-  status: string;
-  error?: string | null;
-  current_url?: string | null;
-  is_terminal: boolean;
-  validation_errors: ValidationError[];
-  fields: FormFieldInfo[];
-}
-
-/** Request to run the full auto-apply flow against a stored profile. */
-export interface RunAutoApplyRequest {
-  profile_id: string;
-  apply_url: string;
-}
-
-/** A single step in a full auto-apply run. */
-export interface AutoApplyStepLog {
-  step: number;
-  action: string;
-  fields_count: number;
-  status: string;
-  error?: string | null;
-  timestamp: string;
-}
-
-/** Response from a full auto-apply run. */
-export interface RunAutoApplyResponse {
-  session_id: string;
-  profile_id: string;
-  apply_url: string;
-  provider_id: string;
-  provider_display_name: string;
-  success: boolean;
-  status: string;
-  error?: string | null;
-  steps_completed: number;
-  fields_filled: number;
-  duration_ms: number;
-  step_log: AutoApplyStepLog[];
-}
-
-/** Applicant profile used by auto-apply sessions (create/update body). */
-export interface AutoApplyProfileRequest {
-  name?: string;
-
-  // Personal
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  phone?: string;
-  linkedin_url?: string | null;
-  website_url?: string | null;
-  portfolio_url?: string | null;
-
-  // Address
-  address_line1?: string | null;
-  address_line2?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zip_code?: string | null;
-  country?: string | null;
-
-  // Resume
-  resume_text?: string | null;
-  resume_file_path?: string | null;
-  cover_letter_template?: string | null;
-
-  // Work Authorization / EEO
-  work_authorization?: string | null;
-  requires_sponsorship?: boolean | null;
-  gender?: string | null;
-  ethnicity?: string | null;
-  veteran_status?: string | null;
-  disability_status?: string | null;
-
-  // Salary / Availability
-  desired_salary?: string | null;
-  salary_expectation_currency?: string | null;
-  available_start_date?: string | null;
-  willing_to_relocate?: boolean | null;
-
-  // Education
-  highest_degree?: string | null;
-  field_of_study?: string | null;
-  university?: string | null;
-  graduation_year?: string | null;
-
-  // Experience
-  years_of_experience?: string | null;
-  current_job_title?: string | null;
-  current_company?: string | null;
-
-  // Custom Q&A
-  custom_answers?: Record<string, string> | null;
-}
-
-/** An auto-apply profile as returned by the API. */
-export interface AutoApplyProfileResponse extends AutoApplyProfileRequest {
-  id: string;
-  custom_answers: Record<string, string>;
-  created_at: string;
-  updated_at: string;
 }
